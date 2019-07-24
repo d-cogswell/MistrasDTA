@@ -35,7 +35,7 @@ def start_time(file):
 
     f.close()
 
-    return(datetime.strptime(date,'%c\n'))
+    return(datetime.strptime(date,'%a %b %d %H:%M:%S %Y\n'))
 
 CHID_to_str={
     1:'RISE',
@@ -223,4 +223,4 @@ def read_bin(file,msg_id=None):
 
 
 def start_time_bin(file):
-    return(datetime.strptime(read_bin(file,99),'%c\n'))
+    return(datetime.strptime(read_bin(file,99),'%a %b %d %H:%M:%S %Y\n'))
