@@ -152,7 +152,7 @@ def read_bin(file,msg_id=None):
                 while SUBID in submessages:
                     LSUB,SUBID=struct.unpack('HB',data.read(3))
                     LSUB=LSUB-1
-                    logging.info("\tSUBID:",SUBID)
+                    logging.info("\tSUBID: "+str(SUBID))
 
                     #Event Data Set Definition
                     if SUBID==5:
@@ -182,7 +182,7 @@ def read_bin(file,msg_id=None):
                 logging.info("Time and Date of Test Start:")
                 [m]=struct.unpack(str(LEN)+'s',data.read(LEN))
                 m=m.decode("ascii").strip('\x00')
-                logging.info("\t",m)
+                logging.info("\t"+m)
                 if msg_id==b1:
                     return(m)
                 
@@ -212,7 +212,7 @@ def read_bin(file,msg_id=None):
                 data.read(LEN)
 
             else:
-                logging.info("ID", b1, "not yet implemented!")
+                logging.info("ID "+str(b1)+" not yet implemented!")
                 data.read(LEN)
             
             byte=data.read(2)
