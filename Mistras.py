@@ -58,6 +58,12 @@ CHID_byte_len={
 #Hardware setup submessage ids
 submessages=[100,27,102,133,5,6,106,28,29,110,111,124,101,103]
 
+#Convert 6-byte sequence to a time offset
+def bytes_to_RTOT(bytes):
+    (i1,i2)=struct.unpack('IH',bytes)
+    return((i1+2**32*i2)*.25e-6)
+
+
 def read_bin(file,msg_id=None):
     #Array to hold AE hit records
     rec=[]
@@ -85,9 +91,8 @@ def read_bin(file,msg_id=None):
             if b1==1:
                 logging.info("AE Hit or Event Data")
                 
-                (i1,i2)=struct.unpack('IH',data.read(6))
+                RTOT=bytes_to_RTOT(data.read(6))
                 LEN=LEN-6
-                RTOT=(i1+2**32*i2)*.25e-6
 
                 [CID]=struct.unpack('B',data.read(1))
                 LEN=LEN-1
@@ -199,7 +204,12 @@ def read_bin(file,msg_id=None):
             #Stop the Test
             elif b1==129:
                 logging.info("Stop the test")
+                RTOT=bytes_to_RTOT(data.read(6))
+                LEN=LEN-6
+                logging.info("\tRTOT: "+str(RTOT))
                 data.read(LEN)
+                if msg_id==b1:
+                    return(RTOT)
 
             #Pause the Test
             elif b1==130:
