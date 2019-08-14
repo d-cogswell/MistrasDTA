@@ -55,9 +55,6 @@ CHID_byte_len={
     23:2,
     24:2}
 
-#Hardware setup submessage ids
-submessages=[100,27,102,133,5,6,106,28,29,110,111,124,101,103]
-
 #Convert 6-byte sequence to a time offset
 def bytes_to_RTOT(bytes):
     (i1,i2)=struct.unpack('IH',bytes)
@@ -150,37 +147,30 @@ def read_bin(file,msg_id=None):
                 data.read(2)
                 LEN=LEN-2
 
-                #Peek at the SUBID
-                LSUB,SUBID=struct.unpack('HB',data.read(3))
-                data.seek(-3,1)
+                #SUBID
+                while LEN>0:
+                    [LSUB]=struct.unpack('H',data.read(2))
+                    LEN=LEN-LSUB
 
-                while SUBID in submessages:
-                    LSUB,SUBID=struct.unpack('HB',data.read(3))
+                    [SUBID]=struct.unpack('B',data.read(1))
                     LSUB=LSUB-1
-                    logging.info("\tSUBID: "+str(SUBID))
 
-                    #Event Data Set Definition
                     if SUBID==5:
                         logging.info("\tEvent Data Set Definition")
                         
                         #Number of AE characteristics
                         [CHID]=struct.unpack('B',data.read(1))
                         LSUB=LSUB-1
-                        LEN=LEN-1
 
                         #read CHID values
                         CHID_list=struct.unpack(str(CHID)+'B',data.read(CHID))
                         LSUB=LSUB-CHID
-                        LEN=LEN-CHID
+
+                    else:
+                        logging.info("\tSUBID "+str(SUBID)+" not yet implemented!")
+
                         
                     data.read(LSUB)
-                    LEN=LEN-LSUB
-
-                    #Peek at the next SUBID
-                    LSUB,SUBID=struct.unpack('HB',data.read(3))
-                    data.seek(-3,1)
-
-                data.read(LEN)
                 
             #Time and Date of Test Start
             elif b1==99:
