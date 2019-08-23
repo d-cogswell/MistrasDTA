@@ -65,6 +65,9 @@ def read_bin(file,msg_id=None):
     #Array to hold AE hit records
     rec=[]
 
+    #Array to hold waveforms
+    wfm=[]
+
     #Default list of characteristics
     CHID_list=[]
 
@@ -209,6 +212,32 @@ def read_bin(file,msg_id=None):
             #Digial AE Waveform Data
             elif b1==173:
                 logging.info("Digital AE Waveform Data")
+
+                [SUBID]=struct.unpack('B',data.read(1))
+                LEN=LEN-1
+
+                TOT=bytes_to_RTOT(data.read(6))
+                LEN=LEN-6
+
+                [CID]=struct.unpack('B',data.read(1))
+                LEN=LEN-1
+
+                #ALB
+                data.read(1)
+                LEN=LEN-1
+
+                MaxInput=10.0
+                Gain=1
+                MaxCounts=32768.0
+                AmpScaleFactor=MaxInput/(Gain*MaxCounts)
+                
+                s=struct.unpack(str(int(LEN/2))+'h',data.read(LEN))
+                LEN=0
+
+                #Append waveform to wfm with data stored as a byte string
+                re=[TOT,CID,(AmpScaleFactor*np.array(s)).tobytes()]
+                wfm.append(re)
+
                 data.read(LEN)
 
             else:
@@ -219,7 +248,10 @@ def read_bin(file,msg_id=None):
 
 
     #Convert numpy array and add record names
-    return(np.core.records.fromrecords(rec,names=['SSSSSSSS.mmmuuun','CH']+[CHID_to_str[i] for i in CHID_list]))
+    rec=np.core.records.fromrecords(rec,names=['SSSSSSSS.mmmuuun','CH']+[CHID_to_str[i] for i in CHID_list])
+    wfm=np.core.records.fromrecords(wfm,names=['SSSSSSSS.mmmuuun','CH','WAVEFORM'])
+
+    return(rec,wfm)
 
 
 def start_time_bin(file):
