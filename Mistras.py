@@ -68,6 +68,9 @@ def read_bin(file,msg_id=None):
     #Array to hold waveforms
     wfm=[]
 
+    #Array to hold AE hardware settings
+    hardware=[]
+
     #Default list of characteristics
     CHID_list=[]
 
@@ -169,11 +172,72 @@ def read_bin(file,msg_id=None):
                         CHID_list=struct.unpack(str(CHID)+'B',data.read(CHID))
                         LSUB=LSUB-CHID
 
+                    elif SUBID==173:
+                        [SUBID2]=struct.unpack('B', data.read(1))
+                        LSUB=LSUB-1
+
+                        if SUBID2==42:
+                            logging.info("\t173,42 Hardware Setup")
+
+                            #MVERN
+                            MVERN=struct.unpack('BB',data.read(2))
+                            LSUB=LSUB-2
+
+                            #ADT
+                            data.read(1)
+                            LSUB=LSUB-1
+
+                            #SETS
+                            SETS=struct.unpack('BB',data.read(2))
+                            LSUB=LSUB-2
+
+                            [SLEN]=struct.unpack('H',data.read(2))
+                            LSUB=LSUB-2
+
+                            [CHID]=struct.unpack('B',data.read(1))
+                            LSUB=LSUB-1
+
+                            [HLK]=struct.unpack('H',data.read(2))
+                            LSUB=LSUB-2
+
+                            #HITS
+                            data.read(2)
+                            LSUB=LSUB-2
+
+                            #SRATE
+                            [SRATE]=struct.unpack('H',data.read(2))
+                            LSUB=LSUB-2
+
+                            #TMODE
+                            data.read(2)
+                            LSUB=LSUB-2
+
+                            #TSRC
+                            data.read(2)
+                            LSUB=LSUB-2
+
+                            #TDLY
+                            [TDLY]=struct.unpack('B',data.read(1))
+                            LSUB=LSUB-1
+
+                            #MXIN
+                            data.read(2)
+                            LSUB=LSUB-2
+
+                            #THRD
+                            data.read(2)
+                            LSUB=LSUB-2
+
+                            hardware.append([CHID,1000*SRATE,TDLY])
+
                     else:
                         logging.info("\tSUBID "+str(SUBID)+" not yet implemented!")
 
                         
                     data.read(LSUB)
+            
+                #Convert hardware settings to record array
+                hardware=np.core.records.fromrecords(hardware,names=['CH','SRATE','TDLY'])
                 
             #Time and Date of Test Start
             elif b1==99:
@@ -235,7 +299,8 @@ def read_bin(file,msg_id=None):
                 LEN=0
 
                 #Append waveform to wfm with data stored as a byte string
-                re=[TOT,CID,(AmpScaleFactor*np.array(s)).tobytes()]
+                channel=hardware[hardware['CH']==CID]
+                re=[TOT,CID,channel['SRATE'][0],channel['TDLY'][0],(AmpScaleFactor*np.array(s)).tobytes()]
                 wfm.append(re)
 
                 data.read(LEN)
@@ -249,7 +314,7 @@ def read_bin(file,msg_id=None):
 
     #Convert numpy array and add record names
     rec=np.core.records.fromrecords(rec,names=['SSSSSSSS.mmmuuun','CH']+[CHID_to_str[i] for i in CHID_list])
-    wfm=np.core.records.fromrecords(wfm,names=['SSSSSSSS.mmmuuun','CH','WAVEFORM'])
+    wfm=np.core.records.fromrecords(wfm,names=['SSSSSSSS.mmmuuun','CH','SRATE','TDLY','WAVEFORM'])
 
     return(rec,wfm)
 
