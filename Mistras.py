@@ -71,6 +71,9 @@ def read_bin(file,msg_id=None):
     #Array to hold AE hardware settings
     hardware=[]
 
+    #Dictionary to hold gain settings
+    gain={}
+
     #Default list of characteristics
     CHID_list=[]
 
@@ -171,6 +174,12 @@ def read_bin(file,msg_id=None):
                         #read CHID values
                         CHID_list=struct.unpack(str(CHID)+'B',data.read(CHID))
                         LSUB=LSUB-CHID
+
+                    elif SUBID==23:
+                        logging.info("\tSet Gain")
+                        CID,V=struct.unpack('BB',data.read(2))
+                        gain[CID]=V
+                        LSUB=LSUB-2
 
                     elif SUBID==173:
                         [SUBID2]=struct.unpack('B', data.read(1))
@@ -291,7 +300,7 @@ def read_bin(file,msg_id=None):
                 LEN=LEN-1
 
                 MaxInput=10.0
-                Gain=1
+                Gain=10**(gain[CID]/20)
                 MaxCounts=32768.0
                 AmpScaleFactor=MaxInput/(Gain*MaxCounts)
                 
