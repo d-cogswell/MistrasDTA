@@ -314,3 +314,13 @@ def read_bin(file,msg_id=None):
 
 def start_time_bin(file):
     return(datetime.strptime(read_bin(file,99),'%a %b %d %H:%M:%S %Y\n'))
+
+
+def plot_waveform(wfm_row,ax):
+    wfm=np.frombuffer(wfm_row['WAVEFORM'])
+    srate=wfm_row['SRATE']
+    tdly=wfm_row['TDLY']
+    
+    ax.plot(1e6*(np.array(range(len(wfm))))/srate-tdly,wfm)
+    ax.set_xlabel('time (us)')
+    ax.set_ylabel('votlage (V)')
