@@ -93,7 +93,6 @@ def read_bin(file,msg_id=None):
                 [b2]=struct.unpack('B', data.read(1))
                 LEN=LEN-1
 
-            #AE Hit or Event Data
             if b1==1:
                 logging.info("AE Hit or Event Data")
                 
@@ -117,27 +116,23 @@ def read_bin(file,msg_id=None):
                     
                     LEN=LEN-b
                     record.append(v)
-                    # print('\t'+CHID_to_str[CHID]+':',v)
 
                 rec.append(record)
                 data.read(LEN)
             
-            #"Time Driven" Sample Data
             elif b1==2:
                 logging.info("Time Driven Sample Data")
                 data.read(LEN)
                         
-            elif (b1==6):
+            elif b1==6:
                 logging.info("Time driven/Demand Data Set Definition")
                 data.read(LEN)
 
-            #User Comments/Test Label
-            elif (b1==7):
+            elif b1==7:
                 logging.info("User Comments/Test Label:")
                 [m]=struct.unpack(str(LEN)+'s',data.read(LEN))
                 print("\t",m.decode("ascii").strip('\x00'))
 
-            #ASCII Product definition
             elif b1==41:
                 logging.info("ASCII Product Definition:")
 
@@ -148,7 +143,6 @@ def read_bin(file,msg_id=None):
                 [m]=struct.unpack(str(LEN)+'s',data.read(LEN))
                 logging.info(m[:-3].decode('ascii'))
             
-            #Hardware Setup
             elif b1==42:
                 logging.info("Hardware Setup")
 
@@ -188,7 +182,6 @@ def read_bin(file,msg_id=None):
                         if SUBID2==42:
                             logging.info("\t173,42 Hardware Setup")
 
-                            #MVERN
                             MVERN=struct.unpack('BB',data.read(2))
                             LSUB=LSUB-2
 
@@ -196,7 +189,6 @@ def read_bin(file,msg_id=None):
                             data.read(1)
                             LSUB=LSUB-1
 
-                            #SETS
                             SETS=struct.unpack('BB',data.read(2))
                             LSUB=LSUB-2
 
@@ -213,7 +205,6 @@ def read_bin(file,msg_id=None):
                             data.read(2)
                             LSUB=LSUB-2
 
-                            #SRATE
                             [SRATE]=struct.unpack('H',data.read(2))
                             LSUB=LSUB-2
 
@@ -225,7 +216,6 @@ def read_bin(file,msg_id=None):
                             data.read(2)
                             LSUB=LSUB-2
 
-                            #TDLY
                             [TDLY]=struct.unpack('B',data.read(1))
                             LSUB=LSUB-1
 
@@ -248,7 +238,6 @@ def read_bin(file,msg_id=None):
                 #Convert hardware settings to record array
                 hardware=np.core.records.fromrecords(hardware,names=['CH','SRATE','TDLY'])
                 
-            #Time and Date of Test Start
             elif b1==99:
                 logging.info("Time and Date of Test Start:")
                 [m]=struct.unpack(str(LEN)+'s',data.read(LEN))
@@ -257,17 +246,14 @@ def read_bin(file,msg_id=None):
                 if msg_id==b1:
                     return(m)
                 
-            #End of Group Setting
             elif b1==124:
                 logging.info("End of Group Setting")
                 data.read(LEN)
 
-            #Resume Test or Start Of Test
             elif b1==128:
                 logging.info("Resume Test or Start Of Test")
                 data.read(LEN)
 
-            #Stop the Test
             elif b1==129:
                 logging.info("Stop the test")
                 RTOT=bytes_to_RTOT(data.read(6))
@@ -277,12 +263,10 @@ def read_bin(file,msg_id=None):
                 if msg_id==b1:
                     return(RTOT)
 
-            #Pause the Test
             elif b1==130:
                 logging.info("Pause the test")
                 data.read(LEN)
 
-            #Digial AE Waveform Data
             elif b1==173:
                 logging.info("Digital AE Waveform Data")
 
