@@ -306,8 +306,10 @@ def read_bin(file,msg_id=None):
 
 
     #Convert numpy array and add record names
-    rec=np.core.records.fromrecords(rec,names=['SSSSSSSS.mmmuuun','CH']+[CHID_to_str[i] for i in CHID_list])
-    wfm=np.core.records.fromrecords(wfm,names=['SSSSSSSS.mmmuuun','CH','SRATE','TDLY','WAVEFORM'])
+    if rec:
+        rec=np.core.records.fromrecords(rec,names=['SSSSSSSS.mmmuuun','CH']+[CHID_to_str[i] for i in CHID_list])
+    if wfm:
+        wfm=np.core.records.fromrecords(wfm,names=['SSSSSSSS.mmmuuun','CH','SRATE','TDLY','WAVEFORM'])
 
     return(rec,wfm)
 
