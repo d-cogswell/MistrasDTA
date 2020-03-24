@@ -43,6 +43,7 @@ CHID_to_str={
     4:'ENER',
     5:'DURATION',
     6:'AMP',
+    21:'ABS-ENERGY',
     23:'FRQ-C',
     24:'P-FRQ'}
 
@@ -52,6 +53,7 @@ CHID_byte_len={
     4:2,
     5:4,
     6:1,
+    21:4,
     23:2,
     24:2}
 
@@ -111,8 +113,15 @@ def read_bin(file,msg_id=None):
                         [v]=struct.unpack('B',data.read(b))
                     elif b==2:
                         [v]=struct.unpack('H',data.read(b))
-                    elif b==4:
+                    
+                    #DURATION
+                    elif CHID_to_str[CHID]=='DURATION':
                         [v]=struct.unpack('i',data.read(b))
+
+                    #ABS-ENERGY
+                    elif CHID_to_str[CHID]=='ABS-ENERGY':
+                        [v]=struct.unpack('f',data.read(b))
+                        v=v*9.31e-4
                     
                     LEN=LEN-b
                     record.append(v)
