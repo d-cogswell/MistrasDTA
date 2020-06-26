@@ -1,5 +1,6 @@
 import numpy as np
-from datetime import datetime
+from numpy.lib.recfunctions import append_fields
+from datetime import datetime, timedelta
 import struct
 import logging
 
@@ -252,6 +253,7 @@ def read_bin(file,msg_id=None):
                 [m]=struct.unpack(str(LEN)+'s',data.read(LEN))
                 m=m.decode("ascii").strip('\x00')
                 logging.info("\t"+m)
+                test_start_time=datetime.strptime(m,'%a %b %d %H:%M:%S %Y\n')
                 if msg_id==b1:
                     return(m)
                 
@@ -319,6 +321,12 @@ def read_bin(file,msg_id=None):
         rec=np.core.records.fromrecords(rec,names=['SSSSSSSS.mmmuuun','CH']+[CHID_to_str[i] for i in CHID_list])
     if wfm:
         wfm=np.core.records.fromrecords(wfm,names=['SSSSSSSS.mmmuuun','CH','SRATE','TDLY','WAVEFORM'])
+
+    #Append a Unix timestamp field
+    timestamp=[
+        (test_start_time + timedelta(seconds=t)).timestamp() 
+        for t in rec['SSSSSSSS.mmmuuun']]
+    rec=append_fields(rec, 'TIMESTAMP', timestamp, usemask=False, asrecarray=True)
 
     return(rec,wfm)
 
