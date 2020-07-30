@@ -262,21 +262,18 @@ def read_bin(file,msg_id=None):
                 data.read(LEN)
 
             elif b1==128:
-                logging.info("Resume Test or Start Of Test")
-                data.read(LEN)
+                RTOT=bytes_to_RTOT(data.read(6))
+                logging.info("{0:.7f} Resume Test or Start Of Test".format(RTOT))
 
             elif b1==129:
-                logging.info("Stop the test")
                 RTOT=bytes_to_RTOT(data.read(6))
-                LEN=LEN-6
-                logging.info("\tRTOT: "+str(RTOT))
-                data.read(LEN)
+                logging.info("{0:.7f} Stop the test".format(RTOT))
                 if msg_id==b1:
                     return(RTOT)
 
             elif b1==130:
-                logging.info("Pause the test")
-                data.read(LEN)
+                RTOT=bytes_to_RTOT(data.read(6))
+                logging.info("{0:.7f} Pause the test".format(RTOT))
 
             elif b1==173:
                 logging.info("Digital AE Waveform Data")
