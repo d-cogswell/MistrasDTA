@@ -314,17 +314,19 @@ def read_bin(file,msg_id=None):
 
 
     #Convert numpy array and add record names
+    #fromrecords() fails on an empty list
     if rec:
         rec=np.core.records.fromrecords(rec,names=['SSSSSSSS.mmmuuun','CH']+[CHID_to_str[i] for i in CHID_list])
+
+        #Append a Unix timestamp field
+        timestamp=[
+            (test_start_time + timedelta(seconds=t)).timestamp()
+            for t in rec['SSSSSSSS.mmmuuun']]
+        rec=append_fields(rec, 'TIMESTAMP', timestamp, usemask=False, asrecarray=True)
+
     if wfm:
         wfm=np.core.records.fromrecords(wfm,names=['SSSSSSSS.mmmuuun','CH','SRATE','TDLY','WAVEFORM'])
-
-    #Append a Unix timestamp field
-    timestamp=[
-        (test_start_time + timedelta(seconds=t)).timestamp() 
-        for t in rec['SSSSSSSS.mmmuuun']]
-    rec=append_fields(rec, 'TIMESTAMP', timestamp, usemask=False, asrecarray=True)
-
+    
     return(rec,wfm)
 
 
