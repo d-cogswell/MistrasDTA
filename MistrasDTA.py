@@ -133,7 +133,6 @@ def read_bin(file, msg_id=None):
                     record.append(v)
 
                 rec.append(record)
-                data.read(LEN)
 
             elif b1 == 2:
                 logging.info("Time Driven Sample Data")
@@ -306,15 +305,12 @@ def read_bin(file, msg_id=None):
                 AmpScaleFactor = MaxInput/(Gain*MaxCounts)
 
                 s = struct.unpack(str(int(LEN/2))+'h', data.read(LEN))
-                LEN = 0
 
                 # Append waveform to wfm with data stored as a byte string
                 channel = hardware[hardware['CH'] == CID]
                 re = [TOT, CID, channel['SRATE'][0], channel['TDLY']
                       [0], (AmpScaleFactor*np.array(s)).tobytes()]
                 wfm.append(re)
-
-                data.read(LEN)
 
             else:
                 logging.info("ID "+str(b1)+" not yet implemented!")
