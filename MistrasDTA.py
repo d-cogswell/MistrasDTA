@@ -3,6 +3,7 @@ from numpy.lib.recfunctions import append_fields
 from datetime import datetime, timedelta
 import struct
 import logging
+logging.getLogger().setLevel(logging.ERROR)
 
 
 def read(file):
@@ -245,7 +246,7 @@ def read_bin(file, msg_id=None):
                             hardware.append([CHID, 1000*SRATE, TDLY])
 
                     else:
-                        logging.info("\tSUBID "+str(SUBID) +
+                        logging.warn("\tSUBID "+str(SUBID) +
                                      " not yet implemented!")
 
                     data.read(LSUB)
@@ -313,7 +314,7 @@ def read_bin(file, msg_id=None):
                 wfm.append(re)
 
             else:
-                logging.info("ID "+str(b1)+" not yet implemented!")
+                logging.warn("ID "+str(b1)+" not yet implemented!")
                 data.read(LEN)
 
             byte = data.read(2)
