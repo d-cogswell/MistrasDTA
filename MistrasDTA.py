@@ -135,14 +135,6 @@ def read_bin(file, msg_id=None):
 
                 rec.append(record)
 
-            elif b1 == 2:
-                logging.info("Time Driven Sample Data")
-                data.read(LEN)
-
-            elif b1 == 6:
-                logging.info("Time driven/Demand Data Set Definition")
-                data.read(LEN)
-
             elif b1 == 7:
                 logging.info("User Comments/Test Label:")
                 [m] = struct.unpack(str(LEN)+'s', data.read(LEN))
@@ -264,10 +256,6 @@ def read_bin(file, msg_id=None):
                     m, '%a %b %d %H:%M:%S %Y\n')
                 if msg_id == b1:
                     return(m)
-
-            elif b1 == 124:
-                logging.info("End of Group Setting")
-                data.read(LEN)
 
             elif b1 == 128:
                 RTOT = bytes_to_RTOT(data.read(6))
