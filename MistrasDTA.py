@@ -26,15 +26,26 @@ CHID_byte_len = {
     23: 2,
     24: 2}
 
-# Convert 6-byte sequence to a time offset
-
 
 def bytes_to_RTOT(bytes):
+    '''Helper function to convert a 6-byte sequence to a time offset'''
     (i1, i2) = struct.unpack('IH', bytes)
     return((i1+2**32*i2)*.25e-6)
 
 
 def read_bin(file, msg_id=None):
+    '''Function to read binary AEWin data files. The file structure schema is
+    described in Appendix II of the Mistras User's Manual
+
+    Args:
+        file (str): name of a .DTA file to read
+        msg_id (int): particular message to return from the file
+    Returns:
+        rec (numpy.recarray): table of acoustic hits
+        wfm (numpy.recarray): table containing any saved waveforms
+
+    '''
+
     # Array to hold AE hit records
     rec = []
 
@@ -292,14 +303,12 @@ def read_bin(file, msg_id=None):
 
 
 def start_time_bin(file):
+    '''Return the start time of the experiment in a .DTA file'''
     return(datetime.strptime(read_bin(file, 99), '%a %b %d %H:%M:%S %Y\n'))
 
 
-def plot_waveform(wfm_row, ax):
-    wfm = np.frombuffer(wfm_row['WAVEFORM'])
-    srate = wfm_row['SRATE']
-    tdly = wfm_row['TDLY']
-
-    ax.plot(1e6*(np.array(range(len(wfm))))/srate-tdly, wfm)
-    ax.set_xlabel('time (us)')
-    ax.set_ylabel('votlage (V)')
+def get_waveform_data(wfm_row):
+    '''Returns time and voltage from a row of the wfm recarray'''
+    V = np.frombuffer(wfm_row['WAVEFORM'])
+    t = 1e6*np.arange(0, len(V))/wfm_row['SRATE']-wfm_row['TDLY']
+    return(t, V)
