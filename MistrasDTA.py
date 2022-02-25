@@ -113,7 +113,7 @@ def read_bin(file, msg_id=None):
             elif b1 == 7:
                 logging.info("User Comments/Test Label:")
                 [m] = struct.unpack(str(LEN)+'s', data.read(LEN))
-                print("\t", m.decode("ascii").strip('\x00'))
+                logging.info(m.decode("ascii").strip('\x00'))
 
             elif b1 == 41:
                 logging.info("ASCII Product Definition:")
@@ -226,7 +226,7 @@ def read_bin(file, msg_id=None):
                 logging.info("Time and Date of Test Start:")
                 [m] = struct.unpack(str(LEN)+'s', data.read(LEN))
                 m = m.decode("ascii").strip('\x00')
-                logging.info("\t"+m)
+                logging.info(m)
                 test_start_time = datetime.strptime(
                     m, '%a %b %d %H:%M:%S %Y\n')
                 if msg_id == b1:
