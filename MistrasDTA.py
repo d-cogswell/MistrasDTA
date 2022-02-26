@@ -128,6 +128,9 @@ def read_bin(file, msg_id=None):
                     LEN = LEN-b
                     record.append(v)
 
+                # Parmetric channels
+                data.read(LEN)
+
                 rec.append(record)
 
             elif b1 == 7:
