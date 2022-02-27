@@ -33,13 +33,12 @@ def bytes_to_RTOT(bytes):
     return((i1+2**32*i2)*.25e-6)
 
 
-def read_bin(file, msg_id=None):
+def read_bin(file):
     '''Function to read binary AEWin data files. The file structure schema is
     described in Appendix II of the Mistras User's Manual
 
     Args:
         file (str): name of a .DTA file to read
-        msg_id (int): particular message to return from the file
     Returns:
         rec (numpy.recarray): table of acoustic hits
         wfm (numpy.recarray): table containing any saved waveforms
@@ -165,14 +164,14 @@ def read_bin(file, msg_id=None):
                         if SUBID2 == 42:
                             logging.info("\t173,42 Hardware Setup")
 
-                            MVERN = struct.unpack('BB', data.read(2))
+                            [MVERN, b2] = struct.unpack('BB', data.read(2))
                             LSUB = LSUB-2
 
                             # ADT
                             data.read(1)
                             LSUB = LSUB-1
 
-                            SETS = struct.unpack('BB', data.read(2))
+                            [SETS, b2] = struct.unpack('BB', data.read(2))
                             LSUB = LSUB-2
 
                             [SLEN] = struct.unpack('H', data.read(2))
@@ -229,8 +228,6 @@ def read_bin(file, msg_id=None):
                 logging.info(m)
                 test_start_time = datetime.strptime(
                     m, '%a %b %d %H:%M:%S %Y\n')
-                if msg_id == b1:
-                    return(m)
 
             elif b1 == 128:
                 RTOT = bytes_to_RTOT(data.read(6))
@@ -240,8 +237,6 @@ def read_bin(file, msg_id=None):
             elif b1 == 129:
                 RTOT = bytes_to_RTOT(data.read(6))
                 logging.info("{0:.7f} Stop the test".format(RTOT))
-                if msg_id == b1:
-                    return(RTOT)
 
             elif b1 == 130:
                 RTOT = bytes_to_RTOT(data.read(6))
@@ -286,7 +281,9 @@ def read_bin(file, msg_id=None):
     # fromrecords() fails on an empty list
     if rec:
         rec = np.core.records.fromrecords(
-            rec, names=['SSSSSSSS.mmmuuun', 'CH']+[CHID_to_str[i] for i in CHID_list])
+            rec,
+            names=['SSSSSSSS.mmmuuun', 'CH']
+            + [CHID_to_str[i] for i in CHID_list])
 
         # Append a Unix timestamp field
         timestamp = [
@@ -300,11 +297,6 @@ def read_bin(file, msg_id=None):
             wfm, names=['SSSSSSSS.mmmuuun', 'CH', 'SRATE', 'TDLY', 'WAVEFORM'])
 
     return(rec, wfm)
-
-
-def start_time_bin(file):
-    '''Return the start time of the experiment in a .DTA file'''
-    return(datetime.strptime(read_bin(file, 99), '%a %b %d %H:%M:%S %Y\n'))
 
 
 def get_waveform_data(wfm_row):
