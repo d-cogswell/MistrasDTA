@@ -138,6 +138,16 @@ def read_bin(file, msg_id=None):
                 [m] = struct.unpack(str(LEN)+'s', data.read(LEN))
                 print("\t", m.decode("ascii").strip('\x00'))
 
+            elif b1 == 8:
+                logging.info("Message for Continued File")
+
+                # Time of continuation
+                data.read(8)
+
+                # The rest of the mssage contains a setup record,
+                # reset LEN and process as a new message
+                LEN = 0
+
             elif b1 == 41:
                 logging.info("ASCII Product Definition:")
 
