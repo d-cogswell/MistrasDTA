@@ -8,20 +8,36 @@ logging.getLogger().setLevel(logging.ERROR)
 
 CHID_to_str = {
     1: 'RISE',
+    2: 'PCNTS',
     3: 'COUN',
     4: 'ENER',
     5: 'DURATION',
     6: 'AMP',
+    8: 'ASL',
+    10: 'THR',
+    13: 'A-FRQ',
+    17: 'RMS',
+    18: 'R-FRQ',
+    19: 'I-FRQ',
+    20: 'SIG STRENGTH',
     21: 'ABS-ENERGY',
     23: 'FRQ-C',
     24: 'P-FRQ'}
 
 CHID_byte_len = {
     1: 2,
+    2: 2,
     3: 2,
     4: 2,
     5: 4,
     6: 1,
+    8: 1,
+    10: 1,
+    13: 2,
+    17: 2,
+    18: 2,
+    19: 2,
+    20: 4,
     21: 4,
     23: 2,
     24: 2}
@@ -90,22 +106,40 @@ def read_bin(file):
                 # Look up byte length and read data values
                 for CHID in CHID_list:
                     b = CHID_byte_len[CHID]
-                    if b == 1:
-                        [v] = struct.unpack('B', data.read(b))
-                    elif b == 2:
+
+                    if not b:
+                        logging.warn("CHID {0} not yet implemented!".format(CHID))
+                        data.read(b)
+
+                    elif CHID_to_str[CHID] == 'RMS':
                         [v] = struct.unpack('H', data.read(b))
+                        v = v/5000
 
                     # DURATION
                     elif CHID_to_str[CHID] == 'DURATION':
                         [v] = struct.unpack('i', data.read(b))
+
+                    # SIG STRENGTH
+                    elif CHID_to_str[CHID] == 'SIG STRENGTH':
+                        [v] = struct.unpack('i', data.read(b))
+                        v = v*3.05
 
                     # ABS-ENERGY
                     elif CHID_to_str[CHID] == 'ABS-ENERGY':
                         [v] = struct.unpack('f', data.read(b))
                         v = v*9.31e-4
 
+                    elif b == 1:
+                        [v] = struct.unpack('B', data.read(b))
+
+                    elif b == 2:
+                        [v] = struct.unpack('H', data.read(b))
+
                     LEN = LEN-b
                     record.append(v)
+
+                # Parmetric channels
+                data.read(LEN)
 
                 rec.append(record)
 
@@ -113,6 +147,16 @@ def read_bin(file):
                 logging.info("User Comments/Test Label:")
                 [m] = struct.unpack(str(LEN)+'s', data.read(LEN))
                 logging.info(m.decode("ascii").strip('\x00'))
+
+            elif b1 == 8:
+                logging.info("Message for Continued File")
+
+                # Time of continuation
+                data.read(8)
+
+                # The rest of the mssage contains a setup record,
+                # reset LEN and process as a new message
+                LEN = 0
 
             elif b1 == 41:
                 logging.info("ASCII Product Definition:")
@@ -150,6 +194,12 @@ def read_bin(file):
                         CHID_list = struct.unpack(
                             str(CHID)+'B', data.read(CHID))
                         LSUB = LSUB-CHID
+
+                        # Exit if not all CHID have been implemented
+                        for CHID in CHID_list:
+                            if CHID not in CHID_byte_len.keys():
+                                logging.error("CHID {0} not yet implemented!".format(CHID))
+                                exit()
 
                     elif SUBID == 23:
                         logging.info("\tSet Gain")
