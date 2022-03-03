@@ -49,12 +49,13 @@ def bytes_to_RTOT(bytes):
     return((i1+2**32*i2)*.25e-6)
 
 
-def read_bin(file):
+def read_bin(file, skip_wfm=False):
     '''Function to read binary AEWin data files. The file structure schema is
     described in Appendix II of the Mistras User's Manual
 
     Args:
         file (str): name of a .DTA file to read
+        skip_wfm (bool): do not return waveforms if True
     Returns:
         rec (numpy.recarray): table of acoustic hits
         wfm (numpy.recarray): table containing any saved waveforms
@@ -316,10 +317,11 @@ def read_bin(file):
                 s = struct.unpack(str(int(LEN/2))+'h', data.read(LEN))
 
                 # Append waveform to wfm with data stored as a byte string
-                channel = hardware[hardware['CH'] == CID]
-                re = [TOT, CID, channel['SRATE'][0], channel['TDLY']
-                      [0], (AmpScaleFactor*np.array(s)).tobytes()]
-                wfm.append(re)
+                if not skip_wfm:
+                    channel = hardware[hardware['CH'] == CID]
+                    re = [TOT, CID, channel['SRATE'][0], channel['TDLY']
+                        [0], (AmpScaleFactor*np.array(s)).tobytes()]
+                    wfm.append(re)
 
             else:
                 logging.warn("ID "+str(b1)+" not yet implemented!")
