@@ -107,23 +107,34 @@ def read_bin(file, msg_id=None):
                 # Look up byte length and read data values
                 for CHID in CHID_list:
                     b = CHID_byte_len[CHID]
-                    if b == 1:
-                        [v] = struct.unpack('B', data.read(b))
-                    elif b == 2:
+
+                    if not b:
+                        logging.warn("CHID {0} not yet implemented!".format(CHID))
+                        data.read(b)
+
+                    elif CHID_to_str[CHID] == 'RMS':
                         [v] = struct.unpack('H', data.read(b))
+                        v = v/5000
 
                     # DURATION
                     elif CHID_to_str[CHID] == 'DURATION':
                         [v] = struct.unpack('i', data.read(b))
+
+                    # SIG STRENGTH
+                    elif CHID_to_str[CHID] == 'SIG STRENGTH':
+                        [v] = struct.unpack('i', data.read(b))
+                        v = v*3.05
 
                     # ABS-ENERGY
                     elif CHID_to_str[CHID] == 'ABS-ENERGY':
                         [v] = struct.unpack('f', data.read(b))
                         v = v*9.31e-4
 
-                    else:
-                        logging.warn("CHID {0} not yet implemented!".format(CHID))
-                        data.read(b)
+                    elif b == 1:
+                        [v] = struct.unpack('B', data.read(b))
+
+                    elif b == 2:
+                        [v] = struct.unpack('H', data.read(b))
 
                     LEN = LEN-b
                     record.append(v)
