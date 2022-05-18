@@ -109,7 +109,7 @@ def read_bin(file, skip_wfm=False):
                     b = CHID_byte_len[CHID]
 
                     if not b:
-                        logging.warn("CHID {0} not yet implemented!".format(CHID))
+                        logging.warning("CHID {0} not yet implemented!".format(CHID))
                         data.read(b)
 
                     elif CHID_to_str[CHID] == 'RMS':
@@ -263,7 +263,7 @@ def read_bin(file, skip_wfm=False):
                             hardware.append([CHID, 1000*SRATE, TDLY])
 
                     else:
-                        logging.warn("\tSUBID "+str(SUBID) +
+                        logging.warning("\tSUBID "+str(SUBID) +
                                      " not yet implemented!")
 
                     data.read(LSUB)
@@ -324,7 +324,7 @@ def read_bin(file, skip_wfm=False):
                     wfm.append(re)
 
             else:
-                logging.warn("ID "+str(b1)+" not yet implemented!")
+                logging.warning("ID "+str(b1)+" not yet implemented!")
                 data.read(LEN)
 
             byte = data.read(2)
