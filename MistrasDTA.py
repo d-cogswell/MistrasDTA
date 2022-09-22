@@ -196,12 +196,6 @@ def read_bin(file, skip_wfm=False):
                             str(CHID)+'B', data.read(CHID))
                         LSUB = LSUB-CHID
 
-                        # Exit if not all CHID have been implemented
-                        for CHID in CHID_list:
-                            if CHID not in CHID_byte_len.keys():
-                                logging.error("CHID {0} not yet implemented!".format(CHID))
-                                exit()
-
                     elif SUBID == 23:
                         logging.info("\tSet Gain")
                         CID, V = struct.unpack('BB', data.read(2))
