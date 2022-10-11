@@ -43,15 +43,15 @@ CHID_byte_len = {
     24: 2}
 
 
-def bytes_to_RTOT(bytes):
-    '''Helper function to convert a 6-byte sequence to a time offset'''
+def _bytes_to_RTOT(bytes):
+    """Helper function to convert a 6-byte sequence to a time offset"""
     (i1, i2) = struct.unpack('IH', bytes)
-    return((i1+2**32*i2)*.25e-6)
+    return ((i1+2**32*i2)*.25e-6)
 
 
 def read_bin(file, skip_wfm=False):
-    '''Function to read binary AEWin data files. The file structure schema is
-    described in Appendix II of the Mistras User's Manual
+    """Function to read binary AEWin data files. The file structure schema is
+    described in Appendix II of the Mistras User's Manual.
 
     Args:
         file (str): name of a .DTA file to read
@@ -59,8 +59,7 @@ def read_bin(file, skip_wfm=False):
     Returns:
         rec (numpy.recarray): table of acoustic hits
         wfm (numpy.recarray): table containing any saved waveforms
-
-    '''
+    """
 
     # Array to hold AE hit records
     rec = []
@@ -96,7 +95,7 @@ def read_bin(file, skip_wfm=False):
             if b1 == 1:
                 logging.info("AE Hit or Event Data")
 
-                RTOT = bytes_to_RTOT(data.read(6))
+                RTOT = _bytes_to_RTOT(data.read(6))
                 LEN = LEN-6
 
                 [CID] = struct.unpack('B', data.read(1))
@@ -109,7 +108,8 @@ def read_bin(file, skip_wfm=False):
                     b = CHID_byte_len[CHID]
 
                     if not b:
-                        logging.warning("CHID {0} not yet implemented!".format(CHID))
+                        logging.warning(
+                            "CHID {0} not yet implemented!".format(CHID))
                         data.read(b)
 
                     elif CHID_to_str[CHID] == 'RMS':
@@ -257,8 +257,8 @@ def read_bin(file, skip_wfm=False):
                             hardware.append([CHID, 1000*SRATE, TDLY])
 
                     else:
-                        logging.warning("\tSUBID "+str(SUBID) +
-                                     " not yet implemented!")
+                        logging.warning(
+                            "\tSUBID {0} not yet implemented!".format(SUBID))
 
                     data.read(LSUB)
 
@@ -275,16 +275,16 @@ def read_bin(file, skip_wfm=False):
                     m, '%a %b %d %H:%M:%S %Y\n')
 
             elif b1 == 128:
-                RTOT = bytes_to_RTOT(data.read(6))
+                RTOT = _bytes_to_RTOT(data.read(6))
                 logging.info(
                     "{0:.7f} Resume Test or Start Of Test".format(RTOT))
 
             elif b1 == 129:
-                RTOT = bytes_to_RTOT(data.read(6))
+                RTOT = _bytes_to_RTOT(data.read(6))
                 logging.info("{0:.7f} Stop the test".format(RTOT))
 
             elif b1 == 130:
-                RTOT = bytes_to_RTOT(data.read(6))
+                RTOT = _bytes_to_RTOT(data.read(6))
                 logging.info("{0:.7f} Pause the test".format(RTOT))
 
             elif b1 == 173:
@@ -293,7 +293,7 @@ def read_bin(file, skip_wfm=False):
                 [SUBID] = struct.unpack('B', data.read(1))
                 LEN = LEN-1
 
-                TOT = bytes_to_RTOT(data.read(6))
+                TOT = _bytes_to_RTOT(data.read(6))
                 LEN = LEN-6
 
                 [CID] = struct.unpack('B', data.read(1))
@@ -314,7 +314,7 @@ def read_bin(file, skip_wfm=False):
                 if not skip_wfm:
                     channel = hardware[hardware['CH'] == CID]
                     re = [TOT, CID, channel['SRATE'][0], channel['TDLY']
-                        [0], (AmpScaleFactor*np.array(s)).tobytes()]
+                          [0], (AmpScaleFactor*np.array(s)).tobytes()]
                     wfm.append(re)
 
             else:
@@ -346,7 +346,7 @@ def read_bin(file, skip_wfm=False):
 
 
 def get_waveform_data(wfm_row):
-    '''Returns time and voltage from a row of the wfm recarray'''
+    """Returns time and voltage from a row of the wfm recarray"""
     V = np.frombuffer(wfm_row['WAVEFORM'])
     t = 1e6*np.arange(0, len(V))/wfm_row['SRATE']-wfm_row['TDLY']
     return(t, V)
