@@ -1,6 +1,12 @@
 # MistrasDTA
 Python module to read acoustic emissions hit data and waveforms from Mistras DTA files. The structure of these binary files is detailed in Appendix II of the Mistras user manual.
 
+# Installation
+MistrasDTA can be installed from PyPI with the following command:
+```
+python -m pip install MistrasDTA
+```
+
 # Usage
 Read the hit summary table from a DTA file:
 ```
