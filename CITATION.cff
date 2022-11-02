@@ -1,0 +1,22 @@
+# This CITATION.cff file was generated with cffinit.
+# Visit https://bit.ly/cffinit to generate yours today!
+
+cff-version: 1.2.0
+title: MistrasDTA
+message: >-
+  If you use this software, please cite it using the
+  metadata from this file.
+type: software
+authors:
+  - given-names: Cogswell
+    family-names: Daniel
+    email: cogswell@alum.mit.edu
+    affiliation: MIT
+    orcid: 'https://orcid.org/0000-0001-8027-9635'
+repository-code: 'https://github.com/d-cogswell/MistrasDTA'
+abstract: >-
+  Python module to read acoustic emissions DTA files
+  from AEWin.
+license: MIT
+version: 0.1.2
+date-released: '2022-10-11'
