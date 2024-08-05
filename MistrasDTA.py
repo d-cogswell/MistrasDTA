@@ -341,11 +341,11 @@ def read_bin(file, skip_wfm=False):
         wfm = np.core.records.fromrecords(
             wfm, names=['SSSSSSSS.mmmuuun', 'CH', 'SRATE', 'TDLY', 'WAVEFORM'])
 
-    return(rec, wfm)
+    return rec, wfm
 
 
 def get_waveform_data(wfm_row):
     """Returns time and voltage from a row of the wfm recarray"""
     V = np.frombuffer(wfm_row['WAVEFORM'])
     t = 1e6*np.arange(0, len(V))/wfm_row['SRATE']-wfm_row['TDLY']
-    return(t, V)
+    return t, V
