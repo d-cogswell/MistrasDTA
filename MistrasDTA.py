@@ -242,8 +242,8 @@ def read_bin(file, skip_wfm=False):
                             data.read(2)
                             LSUB = LSUB-2
 
-                            [TDLY] = struct.unpack('B', data.read(1))
-                            LSUB = LSUB-1
+                            [TDLY] = struct.unpack('h', data.read(2))
+                            LSUB = LSUB-2
 
                             # MXIN
                             data.read(2)
