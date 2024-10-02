@@ -242,8 +242,8 @@ def read_bin(file, skip_wfm=False):
                             data.read(2)
                             LSUB = LSUB-2
 
-                            [TDLY] = struct.unpack('B', data.read(1))
-                            LSUB = LSUB-1
+                            [TDLY] = struct.unpack('h', data.read(2))
+                            LSUB = LSUB-2
 
                             # MXIN
                             data.read(2)
@@ -347,5 +347,5 @@ def read_bin(file, skip_wfm=False):
 def get_waveform_data(wfm_row):
     """Returns time and voltage from a row of the wfm recarray"""
     V = np.frombuffer(wfm_row['WAVEFORM'])
-    t = 1e6*np.arange(0, len(V))/wfm_row['SRATE']-wfm_row['TDLY']
+    t = 1e6*(np.arange(0, len(V))+wfm_row['TDLY'])/wfm_row['SRATE']
     return t, V
