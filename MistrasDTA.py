@@ -106,12 +106,7 @@ def read_bin(file, skip_wfm=False):
                 for CHID in CHID_list:
                     b = CHID_byte_len[CHID]
 
-                    if not b:
-                        logging.debug(
-                            "CHID {0} not yet implemented!".format(CHID))
-                        data.read(b)
-
-                    elif CHID_to_str[CHID] == 'RMS':
+                    if CHID_to_str[CHID] == 'RMS':
                         [v] = struct.unpack('H', data.read(b))
                         v = v/5000
 
