@@ -1,0 +1,25 @@
+[build-system]
+requires = ["hatchling >= 1.26"]
+build-backend = "hatchling.build"
+
+[project]
+name = "MistrasDTA"
+version = "0.1.4"
+dependencies = [
+  "numpy",
+]
+requires-python = ">=3.6"
+authors = [
+  { name = "Dan Cogswell", email = "cogswell@alum.mit.edu" },
+]
+description = "Read AEWin acoustic emissions DTA files"
+readme = "README.md"
+license = "MIT"
+license-files = ["LICEN[CS]E*"]
+classifiers = [
+    "Programming Language :: Python :: 3",
+]
+
+[project.urls]
+Homepage = "https://github.com/d-cogswell/MistrasDTA"
+Issues = "https://github.com/d-cogswell/MistrasDTA/issues"
