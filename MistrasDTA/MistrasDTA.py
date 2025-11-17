@@ -257,7 +257,7 @@ def read_bin(file, skip_wfm=False):
                     data.read(LSUB)
 
                 # Convert hardware settings to record array
-                hardware = np.core.records.fromrecords(
+                hardware = np.rec.fromrecords(
                     hardware, names=['CH', 'SRATE', 'TDLY'])
 
             elif b1 == 99:
@@ -320,7 +320,7 @@ def read_bin(file, skip_wfm=False):
     # Convert numpy array and add record names
     # fromrecords() fails on an empty list
     if rec:
-        rec = np.core.records.fromrecords(
+        rec = np.rec.fromrecords(
             rec,
             names=['SSSSSSSS.mmmuuun', 'CH']
             + [CHID_to_str[i] for i in CHID_list])
@@ -333,7 +333,7 @@ def read_bin(file, skip_wfm=False):
                             usemask=False, asrecarray=True)
 
     if wfm:
-        wfm = np.core.records.fromrecords(
+        wfm = np.rec.fromrecords(
             wfm, names=['SSSSSSSS.mmmuuun', 'CH', 'SRATE', 'TDLY', 'WAVEFORM'])
 
     return rec, wfm
