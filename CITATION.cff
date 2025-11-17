@@ -8,8 +8,8 @@ message: >-
   metadata from this file.
 type: software
 authors:
-  - given-names: Cogswell
-    family-names: Daniel
+  - given-names: Daniel
+    family-names: Cogswell
     email: cogswell@alum.mit.edu
     affiliation: MIT
     orcid: 'https://orcid.org/0000-0001-8027-9635'
