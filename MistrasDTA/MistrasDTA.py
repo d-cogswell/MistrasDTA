@@ -54,16 +54,18 @@ def _bytes_to_RTOT(bytes):
     return ((i1+2**32*i2)*.25e-6)
 
 
-def read_bin(file, skip_wfm=False):
+def read_bin(file, skip_wfm=False, include_config=False):
     """Function to read binary AEWin data files. The file structure schema is
     described in Appendix II of the Mistras User's Manual.
 
     Args:
         file (str): name of a .DTA file to read
         skip_wfm (bool): do not return waveforms if True
+        include_config (bool): if True, return a config dict as a third element
     Returns:
         rec (numpy.recarray): table of acoustic hits
         wfm (numpy.recarray): table containing any saved waveforms
+        config (dict): hardware configuration (only when include_config=True)
     """
 
     # Array to hold AE hit records
@@ -83,6 +85,18 @@ def read_bin(file, skip_wfm=False):
 
     # Number of partial power segments (set by MID 109 or SubID 109)
     partial_power_segments = 0
+
+    # Hardware config state (populated by MID 42 SubIDs)
+    threshold = {}      # CID -> threshold dB (SubID 22)
+    hdt = {}            # CID -> hit definition time µs (SubID 24)
+    hlt = {}            # CID -> hit lockout time µs (SubID 25)
+    pdt = {}            # CID -> peak definition time µs (SubID 26)
+    sampling_interval_ms = None  # global sampling interval (SubID 27)
+    demand_rate_ms = None        # demand sampling rate (SubID 102)
+
+    # ASCII metadata
+    product_name = None   # from MID 41
+    user_comment = None   # from MID 7
 
     with open(file, "rb") as data:
         byte = data.read(2)
@@ -175,8 +189,9 @@ def read_bin(file, skip_wfm=False):
                 data.read(2)
                 LEN = LEN-2
 
-                [m] = struct.unpack('<{0}s'.format(LEN), data.read(LEN))
-                logging.info(m[:-3].decode('ascii'))
+                [m] = struct.unpack(str(LEN)+'s', data.read(LEN))
+                product_name = m[:-3].decode('ascii')
+                logging.info(product_name)
 
             elif b1 == 42:
                 logging.info("Hardware Setup")
@@ -205,10 +220,49 @@ def read_bin(file, skip_wfm=False):
                             '<{0}B'.format(CHID), data.read(CHID))
                         LSUB = LSUB-CHID
 
+                    elif SUBID == 22:
+                        logging.info("\tSet Threshold")
+                        CID, V, _flags = struct.unpack('BBB', data.read(3))
+                        threshold[CID] = V
+                        LSUB = LSUB-3
+
                     elif SUBID == 23:
                         logging.info("\tSet Gain")
                         CID, V = struct.unpack('<BB', data.read(2))
                         gain[CID] = V
+                        LSUB = LSUB-2
+
+                    elif SUBID == 24:
+                        logging.info("\tSet HDT")
+                        CID = struct.unpack('B', data.read(1))[0]
+                        [V] = struct.unpack('H', data.read(2))
+                        hdt[CID] = V * 2  # steps of 2 µs
+                        LSUB = LSUB-3
+
+                    elif SUBID == 25:
+                        logging.info("\tSet HLT")
+                        CID = struct.unpack('B', data.read(1))[0]
+                        [V] = struct.unpack('H', data.read(2))
+                        hlt[CID] = V * 2  # steps of 2 µs
+                        LSUB = LSUB-3
+
+                    elif SUBID == 26:
+                        logging.info("\tSet PDT")
+                        CID = struct.unpack('B', data.read(1))[0]
+                        [V] = struct.unpack('H', data.read(2))
+                        pdt[CID] = V  # already in µs
+                        LSUB = LSUB-3
+
+                    elif SUBID == 27:
+                        logging.info("\tSet Sampling Interval")
+                        [V] = struct.unpack('H', data.read(2))
+                        sampling_interval_ms = V
+                        LSUB = LSUB-2
+
+                    elif SUBID == 102:
+                        logging.info("\tSet Demand Rate")
+                        [V] = struct.unpack('H', data.read(2))
+                        demand_rate_ms = V
                         LSUB = LSUB-2
 
                     elif SUBID == 173:
@@ -319,7 +373,25 @@ def read_bin(file, skip_wfm=False):
         wfm = np.rec.fromrecords(
             wfm, names=['SSSSSSSS.mmmuuun', 'CH', 'SRATE', 'TDLY', 'WAVEFORM'])
 
-    return rec, wfm
+    result = (rec, wfm)
+    if include_config:
+        config = {
+            "test_start_time": test_start_time,
+            "product_name": product_name,
+            "user_comment": user_comment,
+            "chid_list": CHID_list,
+            "gain": dict(gain),
+            "threshold": dict(threshold),
+            "hdt": dict(hdt),
+            "hlt": dict(hlt),
+            "pdt": dict(pdt),
+            "sampling_interval_ms": sampling_interval_ms,
+            "demand_rate_ms": demand_rate_ms,
+            "partial_power_segments": partial_power_segments,
+            "waveform_hardware": hardware,
+        }
+        result += (config,)
+    return result
 
 
 def get_waveform_data(wfm_row):
