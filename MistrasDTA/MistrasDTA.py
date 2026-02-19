@@ -133,6 +133,9 @@ def read_bin(file, skip_wfm=False, include_td=False, include_config=False):
     # Number of partial power segments (set by MID 109 or SubID 109)
     partial_power_segments = 0
 
+    # Parametric PID order (captured from first hit that has parametrics)
+    param_pids = None
+
     # Hardware config state (populated by MID 42 SubIDs)
     threshold = {}      # CID -> threshold dB (SubID 22)
     hdt = {}            # CID -> hit definition time µs (SubID 24)
@@ -217,8 +220,21 @@ def read_bin(file, skip_wfm=False, include_td=False, include_config=False):
                     LEN = LEN-b
                     record.append(v)
 
-                # Parmetric channels
-                data.read(LEN)
+                # Parametric channels: PID(u8) + VALUE(u16) repeats
+                # Trailing 2 bytes are undocumented (observed: varies)
+                parametrics = {}
+                while LEN >= 5:  # PID(1) + VALUE(2) + trailing(2)
+                    [pid] = struct.unpack('B', data.read(1))
+                    [val] = struct.unpack('H', data.read(2))
+                    LEN = LEN - 3
+                    parametrics[pid] = val
+                data.read(LEN)  # trailing bytes
+
+                if parametrics and param_pids is None:
+                    param_pids = tuple(parametrics.keys())
+
+                for pid in (param_pids or ()):
+                    record.append(parametrics.get(pid))
 
                 rec.append(record)
 
@@ -481,10 +497,12 @@ def read_bin(file, skip_wfm=False, include_td=False, include_config=False):
     # Convert numpy array and add record names
     # fromrecords() fails on an empty list
     if rec:
+        param_names = ['PARAM_%d' % p for p in (param_pids or ())]
         rec = np.rec.fromrecords(
             rec,
             names=['SSSSSSSS.mmmuuun', 'CH']
-            + [CHID_to_str[i] for i in CHID_list])
+            + [CHID_to_str[i] for i in CHID_list]
+            + param_names)
 
         # Append a Unix timestamp field
         timestamp = [
