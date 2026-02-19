@@ -28,6 +28,7 @@ def test_include_config(dta_file, ref_file):
         "test_start_time", "product_name", "user_comment", "chid_list",
         "gain", "threshold", "hdt", "hlt", "pdt",
         "sampling_interval_ms", "demand_rate_ms",
+        "demand_chid_list", "demand_pid_list",
         "partial_power_segments", "waveform_hardware",
     }
     assert set(config.keys()) == expected_keys
@@ -41,3 +42,16 @@ def test_include_config(dta_file, ref_file):
     hw = config["waveform_hardware"]
     assert hasattr(hw, 'dtype')
     assert set(hw.dtype.names) >= {"CH", "SRATE", "TDLY"}
+
+
+def test_include_td(dta_file, ref_file):
+    """include_td=True returns a 3-tuple; td is a recarray when TD data exists."""
+    rec, wfm, td = MistrasDTA.read_bin(dta_file, include_td=True)
+
+    if hasattr(td, 'dtype'):
+        # File has time-driven data
+        assert len(td) > 0
+        assert 'SSSSSSSS.mmmuuun' in td.dtype.names
+    else:
+        # File has no time-driven data — td is an empty list
+        assert td == []

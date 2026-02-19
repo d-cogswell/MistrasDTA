@@ -54,17 +54,64 @@ def _bytes_to_RTOT(bytes):
     return ((i1+2**32*i2)*.25e-6)
 
 
-def read_bin(file, skip_wfm=False, include_config=False):
+def _decode_td_fv(fv_bytes, demand_chid_list, partial_power_segments):
+    """Decode a time-driven feature vector into a dict of named values.
+
+    The FV is a concatenation of values for each CHID in demand_chid_list,
+    using byte lengths from CHID_byte_len (CHID 22 uses partial_power_segments).
+    """
+    offset = 0
+    values = {}
+    for chid in demand_chid_list:
+        name = CHID_to_str.get(chid, 'CHID_%d' % chid)
+        if chid == 22:
+            n = partial_power_segments
+            values[name] = fv_bytes[offset:offset+n]
+            offset += n
+        elif chid == 17:  # RMS: uint16 / 5000
+            [v] = struct.unpack_from('H', fv_bytes, offset)
+            values[name] = v / 5000.0
+            offset += 2
+        elif chid == 21:  # ABS-ENERGY: float32 * 9.31e-4
+            [v] = struct.unpack_from('f', fv_bytes, offset)
+            values[name] = v * 9.31e-4
+            offset += 4
+        elif chid == 5:  # DURATION: int32
+            [v] = struct.unpack_from('i', fv_bytes, offset)
+            values[name] = v
+            offset += 4
+        elif chid == 20:  # SIG STRENGTH: int32 * 3.05
+            [v] = struct.unpack_from('i', fv_bytes, offset)
+            values[name] = v * 3.05
+            offset += 4
+        else:
+            bl = CHID_byte_len.get(chid, 0)
+            if bl == 1:
+                [v] = struct.unpack_from('B', fv_bytes, offset)
+            elif bl == 2:
+                [v] = struct.unpack_from('H', fv_bytes, offset)
+            elif bl == 4:
+                [v] = struct.unpack_from('I', fv_bytes, offset)
+            else:
+                v = fv_bytes[offset:offset+bl]
+            values[name] = v
+            offset += bl
+    return values
+
+
+def read_bin(file, skip_wfm=False, include_td=False, include_config=False):
     """Function to read binary AEWin data files. The file structure schema is
     described in Appendix II of the Mistras User's Manual.
 
     Args:
         file (str): name of a .DTA file to read
         skip_wfm (bool): do not return waveforms if True
-        include_config (bool): if True, return a config dict as a third element
+        include_td (bool): if True, return a td recarray of time-driven data
+        include_config (bool): if True, return a config dict as last element
     Returns:
         rec (numpy.recarray): table of acoustic hits
         wfm (numpy.recarray): table containing any saved waveforms
+        td (numpy.recarray): time-driven data (only when include_td=True)
         config (dict): hardware configuration (only when include_config=True)
     """
 
@@ -97,6 +144,14 @@ def read_bin(file, skip_wfm=False, include_config=False):
     # ASCII metadata
     product_name = None   # from MID 41
     user_comment = None   # from MID 7
+
+    # Time-driven / demand data (MID 2/3)
+    demand_chid_list = ()   # from SubID 6
+    demand_pid_list = ()    # from SubID 6
+    td = []                 # time-driven record rows
+    td_pid_order = None     # PID column order (from first TD record)
+    td_cid_order = None     # CID column order (from first TD record)
+    td_fv_keys = None       # feature names per channel (from first TD record)
 
     with open(file, "rb") as data:
         byte = data.read(2)
@@ -167,6 +222,62 @@ def read_bin(file, skip_wfm=False, include_config=False):
 
                 rec.append(record)
 
+            elif b1 in (2, 3):
+                logging.info("Time-Driven Data" if b1 == 2
+                             else "User-Forced Sample Data")
+
+                RTOT = _bytes_to_RTOT(data.read(6))
+                LEN = LEN-6
+
+                # Parametric channels: PID(u8) + VALUE(u16) per demand PID
+                parametrics = {}
+                for _ in demand_pid_list:
+                    if LEN < 3:
+                        break
+                    [pid] = struct.unpack('B', data.read(1))
+                    [val] = struct.unpack('H', data.read(2))
+                    LEN = LEN - 3
+                    parametrics[pid] = val
+
+                # Feature vector length from demand CHID list
+                fv_len = 0
+                for chid in demand_chid_list:
+                    if chid == 22:
+                        fv_len += partial_power_segments
+                    else:
+                        fv_len += CHID_byte_len.get(chid, 0)
+
+                # Channel blocks: CID(u8) + FV(fv_len) repeats
+                per_channel = {}
+                while LEN >= 1 + fv_len and fv_len > 0:
+                    [cid] = struct.unpack('B', data.read(1))
+                    fv = data.read(fv_len)
+                    LEN = LEN - 1 - fv_len
+                    per_channel[cid] = _decode_td_fv(
+                        fv, demand_chid_list, partial_power_segments)
+
+                data.read(LEN)  # trailing bytes
+
+                if include_td:
+                    # Capture column order from first record
+                    if td_pid_order is None:
+                        td_pid_order = tuple(parametrics.keys())
+                    if td_cid_order is None:
+                        td_cid_order = tuple(sorted(per_channel.keys()))
+                    if td_fv_keys is None and per_channel:
+                        first_cid = next(iter(per_channel))
+                        td_fv_keys = tuple(
+                            per_channel[first_cid].keys())
+
+                    pid_vals = [parametrics.get(p) for p in
+                                (td_pid_order or ())]
+                    cid_vals = []
+                    for cid in (td_cid_order or ()):
+                        fv_dict = per_channel.get(cid, {})
+                        for key in (td_fv_keys or ()):
+                            cid_vals.append(fv_dict.get(key))
+                    td.append([RTOT] + pid_vals + cid_vals)
+
             elif b1 == 7:
                 logging.info("User Comments/Test Label:")
                 [m] = struct.unpack('<{0}s'.format(LEN), data.read(LEN))
@@ -219,6 +330,19 @@ def read_bin(file, skip_wfm=False, include_config=False):
                         CHID_list = struct.unpack(
                             '<{0}B'.format(CHID), data.read(CHID))
                         LSUB = LSUB-CHID
+
+                    elif SUBID == 6:
+                        logging.info("\tDemand Data Set Definition")
+                        [N_CHID] = struct.unpack('B', data.read(1))
+                        LSUB = LSUB-1
+                        demand_chid_list = struct.unpack(
+                            str(N_CHID)+'B', data.read(N_CHID))
+                        LSUB = LSUB-N_CHID
+                        [N_PID] = struct.unpack('B', data.read(1))
+                        LSUB = LSUB-1
+                        demand_pid_list = struct.unpack(
+                            str(N_PID)+'B', data.read(N_PID))
+                        LSUB = LSUB-N_PID
 
                     elif SUBID == 22:
                         logging.info("\tSet Threshold")
@@ -373,7 +497,19 @@ def read_bin(file, skip_wfm=False, include_config=False):
         wfm = np.rec.fromrecords(
             wfm, names=['SSSSSSSS.mmmuuun', 'CH', 'SRATE', 'TDLY', 'WAVEFORM'])
 
+    if include_td and td:
+        pid_cols = ['PID_%d' % p for p in (td_pid_order or ())]
+        cid_cols = []
+        if td_cid_order is not None and td_fv_keys is not None:
+            for cid in td_cid_order:
+                for key in td_fv_keys:
+                    cid_cols.append('CID%d_%s' % (cid, key))
+        td = np.rec.fromrecords(
+            td, names=['SSSSSSSS.mmmuuun'] + pid_cols + cid_cols)
+
     result = (rec, wfm)
+    if include_td:
+        result += (td,)
     if include_config:
         config = {
             "test_start_time": test_start_time,
@@ -387,6 +523,8 @@ def read_bin(file, skip_wfm=False, include_config=False):
             "pdt": dict(pdt),
             "sampling_interval_ms": sampling_interval_ms,
             "demand_rate_ms": demand_rate_ms,
+            "demand_chid_list": demand_chid_list,
+            "demand_pid_list": demand_pid_list,
             "partial_power_segments": partial_power_segments,
             "waveform_hardware": hardware,
         }
