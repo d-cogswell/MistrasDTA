@@ -20,8 +20,11 @@ CHID_to_str = {
     19: 'I-FRQ',
     20: 'SIG STRENGTH',
     21: 'ABS-ENERGY',
+    22: 'PARTIAL POWER',
     23: 'FRQ-C',
-    24: 'P-FRQ'}
+    24: 'P-FRQ',
+    31: 'UNKNOWN',
+}
 
 CHID_byte_len = {
     1: 2,
@@ -38,8 +41,11 @@ CHID_byte_len = {
     19: 2,
     20: 4,
     21: 4,
+    22: 0,  # variable-length: partial_power_segments bytes (from MID 109)
     23: 2,
-    24: 2}
+    24: 2,
+    31: 2, # unclear, we have no information on CHID 31
+}
 
 
 def _bytes_to_RTOT(bytes):
@@ -75,6 +81,9 @@ def read_bin(file, skip_wfm=False):
     # Default list of characteristics
     CHID_list = []
 
+    # Number of partial power segments (set by MID 109 or SubID 109)
+    partial_power_segments = 0
+
     with open(file, "rb") as data:
         byte = data.read(2)
         while byte != b"":
@@ -105,6 +114,12 @@ def read_bin(file, skip_wfm=False):
                 # Look up byte length and read data values
                 for CHID in CHID_list:
                     b = CHID_byte_len[CHID]
+
+                    if CHID_to_str[CHID] == 'PARTIAL POWER':
+                        v = data.read(partial_power_segments)
+                        LEN = LEN - partial_power_segments
+                        record.append(v)
+                        continue
 
                     if CHID_to_str[CHID] == 'RMS':
                         [v] = struct.unpack('<H', data.read(b))
@@ -211,6 +226,14 @@ def read_bin(file, skip_wfm=False):
 
                             hardware.append([CHID, 1000*SRATE, TDLY])
 
+                    elif SUBID == 109:
+                        # Partial Power Setup (embedded in MID 42)
+                        data.read(1)  # SEGMENT_TYPE
+                        LSUB = LSUB - 1
+                        [n_seg] = struct.unpack('H', data.read(2))
+                        LSUB = LSUB - 2
+                        partial_power_segments = n_seg
+
                     else:
                         logging.debug(
                             "\tSUBID {0} not yet implemented!".format(SUBID))
@@ -233,6 +256,9 @@ def read_bin(file, skip_wfm=False):
                 RTOT = _bytes_to_RTOT(data.read(6))
                 logging.info(
                     "{0:.7f} Resume Test or Start Of Test".format(RTOT))
+                # in our test file, this message can have an extra byte that isn't
+                # described in the manual, so read it if it's there
+                data.read(LEN-6)
 
             elif b1 == 129:
                 RTOT = _bytes_to_RTOT(data.read(6))
