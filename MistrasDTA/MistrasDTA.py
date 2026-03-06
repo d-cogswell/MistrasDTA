@@ -1,8 +1,16 @@
 import numpy as np
 from numpy.lib.recfunctions import append_fields
 from datetime import datetime, timedelta
+from enum import Enum
 import struct
 import logging
+
+
+class EventType(Enum):
+    """Type of event yielded by iter_events."""
+    HIT = "hit"
+    TD = "td"
+    WFM = "wfm"
 
 
 CHID_to_str = {
@@ -99,66 +107,33 @@ def _decode_td_fv(fv_bytes, demand_chid_list, partial_power_segments):
     return values
 
 
-def read_bin(file, skip_wfm=False, include_td=False, include_config=False):
-    """Function to read binary AEWin data files. The file structure schema is
-    described in Appendix II of the Mistras User's Manual.
+# MIDs that carry event/data records — read_config stops at these
+_DATA_MIDS = frozenset({1, 2, 3, 128, 129, 130, 173})
 
-    Args:
-        file (str): name of a .DTA file to read
-        skip_wfm (bool): do not return waveforms if True
-        include_td (bool): if True, return a td recarray of time-driven data
-        include_config (bool): if True, return a config dict as last element
-    Returns:
-        rec (numpy.recarray): table of acoustic hits
-        wfm (numpy.recarray): table containing any saved waveforms
-        td (numpy.recarray): time-driven data (only when include_td=True)
-        config (dict): hardware configuration (only when include_config=True)
+
+def iter_events(data, config, skip_wfm=False, include_td=False):
+    """Yield (event_type, event_data) tuples from a DTA data stream.
+
+    Call read_config(data) first to consume setup messages; this
+    generator picks up where it left off.
     """
-
-    # Array to hold AE hit records
-    rec = []
-
-    # Array to hold waveforms
-    wfm = []
-
-    # Array to hold AE hardware settings
-    hardware = []
-
-    # Dictionary to hold gain settings
-    gain = {}
-
-    # Default list of characteristics
-    CHID_list = []
-
-    # Number of partial power segments (set by MID 109 or SubID 109)
-    partial_power_segments = 0
+    CHID_list = config["chid_list"]
+    partial_power_segments = config["partial_power_segments"]
+    gain = config["gain"]
+    hardware = config["waveform_hardware"]
+    demand_chid_list = config["demand_chid_list"]
+    demand_pid_list = config["demand_pid_list"]
 
     # Parametric PID order (captured from first hit that has parametrics)
     param_pids = None
 
-    # Hardware config state (populated by MID 42 SubIDs)
-    threshold = {}      # CID -> threshold dB (SubID 22)
-    hdt = {}            # CID -> hit definition time µs (SubID 24)
-    hlt = {}            # CID -> hit lockout time µs (SubID 25)
-    pdt = {}            # CID -> peak definition time µs (SubID 26)
-    sampling_interval_ms = None  # global sampling interval (SubID 27)
-    demand_rate_ms = None        # demand sampling rate (SubID 102)
-
-    # ASCII metadata
-    product_name = None   # from MID 41
-    user_comment = None   # from MID 7
-
-    # Time-driven / demand data (MID 2/3)
-    demand_chid_list = ()   # from SubID 6
-    demand_pid_list = ()    # from SubID 6
-    td = []                 # time-driven record rows
+    # Time-driven column metadata
     td_pid_order = None     # PID column order (from first TD record)
     td_cid_order = None     # CID column order (from first TD record)
     td_fv_keys = None       # feature names per channel (from first TD record)
 
-    with open(file, "rb") as data:
-        byte = data.read(2)
-        while byte != b"":
+    byte = data.read(2)
+    while byte != b"":
 
             # Get the message length byte
             [LEN] = struct.unpack('<H', byte)
@@ -232,11 +207,12 @@ def read_bin(file, skip_wfm=False, include_td=False, include_config=False):
 
                 if parametrics and param_pids is None:
                     param_pids = tuple(parametrics.keys())
+                    config["param_pids"] = param_pids
 
                 for pid in (param_pids or ()):
                     record.append(parametrics.get(pid))
 
-                rec.append(record)
+                yield (EventType.HIT, record)
 
             elif b1 in (2, 3):
                 logging.info("Time-Driven Data" if b1 == 2
@@ -278,12 +254,15 @@ def read_bin(file, skip_wfm=False, include_td=False, include_config=False):
                     # Capture column order from first record
                     if td_pid_order is None:
                         td_pid_order = tuple(parametrics.keys())
+                        config["td_pid_order"] = td_pid_order
                     if td_cid_order is None:
                         td_cid_order = tuple(sorted(per_channel.keys()))
+                        config["td_cid_order"] = td_cid_order
                     if td_fv_keys is None and per_channel:
                         first_cid = next(iter(per_channel))
                         td_fv_keys = tuple(
                             per_channel[first_cid].keys())
+                        config["td_fv_keys"] = td_fv_keys
 
                     pid_vals = [parametrics.get(p) for p in
                                 (td_pid_order or ())]
@@ -292,9 +271,118 @@ def read_bin(file, skip_wfm=False, include_td=False, include_config=False):
                         fv_dict = per_channel.get(cid, {})
                         for key in (td_fv_keys or ()):
                             cid_vals.append(fv_dict.get(key))
-                    td.append([RTOT] + pid_vals + cid_vals)
 
-            elif b1 == 7:
+                    yield (EventType.TD, [RTOT] + pid_vals + cid_vals)
+
+            elif b1 == 128:
+                RTOT = _bytes_to_RTOT(data.read(6))
+                logging.info(
+                    "{0:.7f} Resume Test or Start Of Test".format(RTOT))
+                # in our test file, this message can have an extra byte that isn't
+                # described in the manual, so read it if it's there
+                data.read(LEN-6)
+
+            elif b1 == 129:
+                RTOT = _bytes_to_RTOT(data.read(6))
+                logging.info("{0:.7f} Stop the test".format(RTOT))
+
+            elif b1 == 130:
+                RTOT = _bytes_to_RTOT(data.read(6))
+                logging.info("{0:.7f} Pause the test".format(RTOT))
+
+            elif b1 == 173:
+                logging.info("Digital AE Waveform Data")
+
+                [SUBID] = struct.unpack('<B', data.read(1))
+                LEN = LEN-1
+
+                TOT = _bytes_to_RTOT(data.read(6))
+                LEN = LEN-6
+
+                [CID, ALB] = struct.unpack('<BB', data.read(2))
+                LEN = LEN-2
+
+                MaxInput = 10.0
+                Gain = 10**(gain[CID]/20)
+                MaxCounts = 32768.0
+                AmpScaleFactor = MaxInput/(Gain*MaxCounts)
+
+                s = np.frombuffer(data.read(LEN), dtype=np.int16)
+
+                if not skip_wfm:
+                    channel = hardware[hardware['CH'] == CID]
+                    re = [TOT, CID, channel['SRATE'][0], channel['TDLY'][0],
+                        (AmpScaleFactor*s).tobytes()]
+                    yield (EventType.WFM, re)
+
+            else:
+                logging.debug("ID "+str(b1)+" not yet implemented!")
+                data.read(LEN)
+
+            byte = data.read(2)
+
+
+def read_config(data):
+    """Read configuration messages from an open DTA file handle.
+
+    Consumes setup messages and returns when the first data message
+    is encountered.  The stream is rewound so the next read starts
+    at that data message.
+    """
+
+    # Array to hold AE hardware settings
+    hardware = []
+
+    # Dictionary to hold gain settings
+    gain = {}
+
+    # Default list of characteristics
+    CHID_list = []
+
+    # Number of partial power segments (set by MID 109 or SubID 109)
+    partial_power_segments = 0
+
+    # Hardware config state (populated by MID 42 SubIDs)
+    threshold = {}      # CID -> threshold dB (SubID 22)
+    hdt = {}            # CID -> hit definition time µs (SubID 24)
+    hlt = {}            # CID -> hit lockout time µs (SubID 25)
+    pdt = {}            # CID -> peak definition time µs (SubID 26)
+    sampling_interval_ms = None  # global sampling interval (SubID 27)
+    demand_rate_ms = None        # demand sampling rate (SubID 102)
+
+    # ASCII metadata
+    product_name = None   # from MID 41
+    user_comment = None   # from MID 7
+
+    # Time-driven / demand data (MID 2/3)
+    demand_chid_list = ()   # from SubID 6
+    demand_pid_list = ()    # from SubID 6
+
+    test_start_time = None
+
+    while True:
+            pos = data.tell()
+            byte = data.read(2)
+            if byte == b"":
+                break
+
+            # Get the message length byte
+            [LEN] = struct.unpack('<H', byte)
+
+            # Read the message ID byte
+            [b1] = struct.unpack('<B', data.read(1))
+            LEN = LEN-1
+
+            if b1 in _DATA_MIDS:
+                data.seek(pos)
+                break
+
+            # ID 40-49 have an extra byte
+            if b1 >= 40 and b1 <= 49:
+                [b2] = struct.unpack('<B', data.read(1))
+                LEN = LEN-1
+
+            if b1 == 7:
                 logging.info("User Comments/Test Label:")
                 [m] = struct.unpack('<{0}s'.format(LEN), data.read(LEN))
                 logging.info(m.decode("ascii").strip('\x00'))
@@ -446,53 +534,71 @@ def read_bin(file, skip_wfm=False, include_td=False, include_config=False):
                 test_start_time = datetime.strptime(
                     m, '%a %b %d %H:%M:%S %Y\n')
 
-            elif b1 == 128:
-                RTOT = _bytes_to_RTOT(data.read(6))
-                logging.info(
-                    "{0:.7f} Resume Test or Start Of Test".format(RTOT))
-                # in our test file, this message can have an extra byte that isn't
-                # described in the manual, so read it if it's there
-                data.read(LEN-6)
-
-            elif b1 == 129:
-                RTOT = _bytes_to_RTOT(data.read(6))
-                logging.info("{0:.7f} Stop the test".format(RTOT))
-
-            elif b1 == 130:
-                RTOT = _bytes_to_RTOT(data.read(6))
-                logging.info("{0:.7f} Pause the test".format(RTOT))
-
-            elif b1 == 173:
-                logging.info("Digital AE Waveform Data")
-
-                [SUBID] = struct.unpack('<B', data.read(1))
-                LEN = LEN-1
-
-                TOT = _bytes_to_RTOT(data.read(6))
-                LEN = LEN-6
-
-                [CID, ALB] = struct.unpack('<BB', data.read(2))
-                LEN = LEN-2
-
-                MaxInput = 10.0
-                Gain = 10**(gain[CID]/20)
-                MaxCounts = 32768.0
-                AmpScaleFactor = MaxInput/(Gain*MaxCounts)
-
-                s = np.frombuffer(data.read(LEN), dtype=np.int16)
-
-                # Append waveform to wfm with data stored as a byte string
-                if not skip_wfm:
-                    channel = hardware[hardware['CH'] == CID]
-                    re = [TOT, CID, channel['SRATE'][0], channel['TDLY'][0],
-                          (AmpScaleFactor*s).tobytes()]
-                    wfm.append(re)
-
             else:
                 logging.debug("ID "+str(b1)+" not yet implemented!")
                 data.read(LEN)
 
-            byte = data.read(2)
+    return {
+        "test_start_time": test_start_time,
+        "product_name": product_name,
+        "user_comment": user_comment,
+        "chid_list": CHID_list,
+        "gain": dict(gain),
+        "threshold": dict(threshold),
+        "hdt": dict(hdt),
+        "hlt": dict(hlt),
+        "pdt": dict(pdt),
+        "sampling_interval_ms": sampling_interval_ms,
+        "demand_rate_ms": demand_rate_ms,
+        "demand_chid_list": demand_chid_list,
+        "demand_pid_list": demand_pid_list,
+        "partial_power_segments": partial_power_segments,
+        "waveform_hardware": hardware,
+    }
+
+
+def read_bin(file, skip_wfm=False, include_td=False, include_config=False):
+    """Function to read binary AEWin data files. The file structure schema is
+    described in Appendix II of the Mistras User's Manual.
+
+    Args:
+        file (str): name of a .DTA file to read
+        skip_wfm (bool): do not return waveforms if True
+        include_td (bool): if True, return a td recarray of time-driven data
+        include_config (bool): if True, return a config dict as last element
+    Returns:
+        rec (numpy.recarray): table of acoustic hits
+        wfm (numpy.recarray): table containing any saved waveforms
+        td (numpy.recarray): time-driven data (only when include_td=True)
+        config (dict): hardware configuration (only when include_config=True)
+    """
+
+    # Array to hold AE hit records
+    rec = []
+
+    # Array to hold waveforms
+    wfm = []
+
+    # Time-driven record rows
+    td = []
+
+    with open(file, "rb") as data:
+        config = read_config(data)
+
+        for event_type, event_data in iter_events(data, config, include_td=include_td, skip_wfm=skip_wfm):
+            if event_type is EventType.HIT:
+                rec.append(event_data)
+            elif event_type is EventType.TD:
+                td.append(event_data)
+            elif event_type is EventType.WFM:
+                wfm.append(event_data)
+
+    test_start_time = config["test_start_time"]
+    CHID_list = config["chid_list"]
+    param_pids = config.pop("param_pids", None)
+    td_pid_order = config.pop("td_pid_order", None)
+    td_cid_order = config.pop("td_cid_order", None)
+    td_fv_keys = config.pop("td_fv_keys", None)
 
     # Convert numpy array and add record names
     # fromrecords() fails on an empty list
@@ -529,23 +635,6 @@ def read_bin(file, skip_wfm=False, include_td=False, include_config=False):
     if include_td:
         result += (td,)
     if include_config:
-        config = {
-            "test_start_time": test_start_time,
-            "product_name": product_name,
-            "user_comment": user_comment,
-            "chid_list": CHID_list,
-            "gain": dict(gain),
-            "threshold": dict(threshold),
-            "hdt": dict(hdt),
-            "hlt": dict(hlt),
-            "pdt": dict(pdt),
-            "sampling_interval_ms": sampling_interval_ms,
-            "demand_rate_ms": demand_rate_ms,
-            "demand_chid_list": demand_chid_list,
-            "demand_pid_list": demand_pid_list,
-            "partial_power_segments": partial_power_segments,
-            "waveform_hardware": hardware,
-        }
         result += (config,)
     return result
 
