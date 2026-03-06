@@ -557,12 +557,13 @@ def read_config(data):
     }
 
 
-def read_bin(file, skip_wfm=False, include_td=False, include_config=False):
+def read_bin(files, skip_wfm=False, include_td=False, include_config=False):
     """Function to read binary AEWin data files. The file structure schema is
     described in Appendix II of the Mistras User's Manual.
 
     Args:
-        file (str): name of a .DTA file to read
+        files (str or list): path to a .DTA file, or list of paths for
+            continuation files (state is shared across files)
         skip_wfm (bool): do not return waveforms if True
         include_td (bool): if True, return a td recarray of time-driven data
         include_config (bool): if True, return a config dict as last element
@@ -573,6 +574,10 @@ def read_bin(file, skip_wfm=False, include_td=False, include_config=False):
         config (dict): hardware configuration (only when include_config=True)
     """
 
+    # Normalise to a list of paths
+    if isinstance(files, str):
+        files = [files]
+
     # Array to hold AE hit records
     rec = []
 
@@ -582,16 +587,20 @@ def read_bin(file, skip_wfm=False, include_td=False, include_config=False):
     # Time-driven record rows
     td = []
 
-    with open(file, "rb") as data:
-        config = read_config(data)
+    config = None
 
-        for event_type, event_data in iter_events(data, config, include_td=include_td, skip_wfm=skip_wfm):
-            if event_type is EventType.HIT:
-                rec.append(event_data)
-            elif event_type is EventType.TD:
-                td.append(event_data)
-            elif event_type is EventType.WFM:
-                wfm.append(event_data)
+    for file in files:
+        with open(file, "rb") as data:
+            if config is None:
+                config = read_config(data)
+
+            for event_type, event_data in iter_events(data, config, include_td=include_td, skip_wfm=skip_wfm):
+                if event_type is EventType.HIT:
+                    rec.append(event_data)
+                elif event_type is EventType.TD:
+                    td.append(event_data)
+                elif event_type is EventType.WFM:
+                    wfm.append(event_data)
 
     test_start_time = config["test_start_time"]
     CHID_list = config["chid_list"]
