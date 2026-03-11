@@ -20,6 +20,7 @@ CHID_to_str = {
     19: 'I-FRQ',
     20: 'SIG STRENGTH',
     21: 'ABS-ENERGY',
+    22: "FREQPPX",
     23: 'FRQ-C',
     24: 'P-FRQ'}
 
@@ -124,6 +125,10 @@ def read_bin(file, skip_wfm=False):
                         [v] = struct.unpack('<f', data.read(b))
                         v = v*9.31e-4
 
+                    elif CHID_to_str[CHID] == 'FREQPPX':
+                        v = struct.unpack(f'<{b}b', data.read(b))
+                        v = ','.join(map(str, v))
+
                     elif b == 1:
                         [v] = struct.unpack('<B', data.read(b))
 
@@ -195,6 +200,15 @@ def read_bin(file, skip_wfm=False):
                         CID, V = struct.unpack('<BB', data.read(2))
                         gain[CID] = V
                         LSUB = LSUB-2
+
+                    elif SUBID == 109:
+                        logging.info("\tPartial Power Setup")
+
+                        data.read(1)
+                        [SEG] = struct.unpack('H', data.read(2))
+                        LSUB = LSUB - 3
+
+                        CHID_byte_len.update({22: SEG})
 
                     elif SUBID == 173:
                         [SUBID2] = struct.unpack('<B', data.read(1))
